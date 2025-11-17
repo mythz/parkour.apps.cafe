@@ -134,6 +134,15 @@ export class Renderer {
         case 'lowBarrier':
           this.renderLowBarrier(screenPos, obstacle);
           break;
+        case 'spring':
+          this.renderSpring(screenPos, obstacle);
+          break;
+        case 'dashPad':
+          this.renderDashPad(screenPos, obstacle);
+          break;
+        case 'spike':
+          this.renderSpike(screenPos, obstacle);
+          break;
       }
     });
   }
@@ -196,6 +205,72 @@ export class Renderer {
     this.ctx.strokeStyle = '#DC143C';
     this.ctx.lineWidth = 2;
     this.ctx.strokeRect(screenPos.x, screenPos.y, barrier.width, barrier.height);
+  }
+
+  private renderSpring(screenPos: Vector2, spring: Obstacle): void {
+    // Spring coil
+    this.ctx.fillStyle = '#4CAF50';
+    this.ctx.fillRect(screenPos.x, screenPos.y, spring.width, spring.height);
+
+    // Draw coil pattern
+    this.ctx.strokeStyle = '#2E7D32';
+    this.ctx.lineWidth = 3;
+    this.ctx.beginPath();
+
+    const coils = 3;
+    for (let i = 0; i < coils; i++) {
+      const y = screenPos.y + (i * spring.height / coils);
+      this.ctx.moveTo(screenPos.x, y);
+      this.ctx.lineTo(screenPos.x + spring.width, y);
+    }
+    this.ctx.stroke();
+
+    // Arrow indicator
+    this.ctx.fillStyle = '#FFD700';
+    this.ctx.font = 'bold 14px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('↑', screenPos.x + spring.width / 2, screenPos.y - 5);
+  }
+
+  private renderDashPad(screenPos: Vector2, pad: Obstacle): void {
+    // Dash pad with arrows
+    this.ctx.fillStyle = '#FF6B00';
+    this.ctx.fillRect(screenPos.x, screenPos.y, pad.width, pad.height);
+
+    // Draw speed arrows
+    this.ctx.fillStyle = '#FFD700';
+    const arrowCount = 3;
+    const arrowSpacing = pad.width / (arrowCount + 1);
+
+    for (let i = 1; i <= arrowCount; i++) {
+      const x = screenPos.x + (i * arrowSpacing);
+      const y = screenPos.y + pad.height / 2;
+
+      this.ctx.beginPath();
+      this.ctx.moveTo(x - 5, y);
+      this.ctx.lineTo(x + 5, y);
+      this.ctx.lineTo(x + 2, y - 3);
+      this.ctx.moveTo(x + 5, y);
+      this.ctx.lineTo(x + 2, y + 3);
+      this.ctx.stroke();
+    }
+  }
+
+  private renderSpike(screenPos: Vector2, spike: Obstacle): void {
+    // Dangerous spikes
+    this.ctx.fillStyle = '#8B0000';
+    const spikeCount = Math.floor(spike.width / 20);
+
+    for (let i = 0; i < spikeCount; i++) {
+      const x = screenPos.x + (i * (spike.width / spikeCount));
+
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, screenPos.y + spike.height);
+      this.ctx.lineTo(x + spike.width / spikeCount / 2, screenPos.y);
+      this.ctx.lineTo(x + spike.width / spikeCount, screenPos.y + spike.height);
+      this.ctx.closePath();
+      this.ctx.fill();
+    }
   }
 
   private renderFinishLine(screenPos: Vector2): void {
@@ -274,5 +349,157 @@ export class Renderer {
 
   updateParticles(dt: number): void {
     this.particleSystem.update(dt);
+  }
+
+  renderPowerUps(powerUps: Array<{ position: Vector2; size: Vector2; type: string; getColor: () => string; getIcon: () => string; collected: boolean }>, camera: Camera): void {
+    powerUps.forEach(powerUp => {
+      if (powerUp.collected) return;
+
+      if (!camera.isVisible(powerUp.position.x, powerUp.position.y, powerUp.size.x, powerUp.size.y)) {
+        return;
+      }
+
+      const screenPos = camera.worldToScreen(powerUp.position);
+
+      // Glow effect
+      const gradient = this.ctx.createRadialGradient(
+        screenPos.x + powerUp.size.x / 2,
+        screenPos.y + powerUp.size.y / 2,
+        0,
+        screenPos.x + powerUp.size.x / 2,
+        screenPos.y + powerUp.size.y / 2,
+        powerUp.size.x
+      );
+
+      gradient.addColorStop(0, powerUp.getColor());
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+      this.ctx.fillStyle = gradient;
+      this.ctx.fillRect(
+        screenPos.x - powerUp.size.x / 2,
+        screenPos.y - powerUp.size.y / 2,
+        powerUp.size.x * 2,
+        powerUp.size.y * 2
+      );
+
+      // Power-up box
+      this.ctx.fillStyle = powerUp.getColor();
+      this.ctx.fillRect(screenPos.x, screenPos.y, powerUp.size.x, powerUp.size.y);
+
+      this.ctx.strokeStyle = '#FFFFFF';
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeRect(screenPos.x, screenPos.y, powerUp.size.x, powerUp.size.y);
+
+      // Icon
+      this.ctx.fillStyle = '#FFFFFF';
+      this.ctx.font = 'bold 20px Arial';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(
+        powerUp.getIcon(),
+        screenPos.x + powerUp.size.x / 2,
+        screenPos.y + powerUp.size.y / 2
+      );
+    });
+  }
+
+  renderActivePowerUps(activePowerUps: Array<{ type: string; timeRemaining: number }>, width: number): void {
+    const startY = 80;
+    const boxHeight = 40;
+
+    activePowerUps.forEach((powerUp, index) => {
+      const y = startY + (index * (boxHeight + 5));
+
+      // Background
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      this.ctx.fillRect(width - 160, y, 150, boxHeight);
+
+      // Border
+      this.ctx.strokeStyle = this.getPowerUpColor(powerUp.type);
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeRect(width - 160, y, 150, boxHeight);
+
+      // Icon and name
+      this.ctx.fillStyle = '#FFFFFF';
+      this.ctx.font = 'bold 14px Arial';
+      this.ctx.textAlign = 'left';
+      this.ctx.fillText(
+        `${this.getPowerUpIcon(powerUp.type)} ${this.getPowerUpName(powerUp.type)}`,
+        width - 150,
+        y + 15
+      );
+
+      // Timer
+      this.ctx.fillText(
+        `${powerUp.timeRemaining.toFixed(1)}s`,
+        width - 150,
+        y + 30
+      );
+
+      // Progress bar
+      const barWidth = 140;
+      const progress = powerUp.timeRemaining / 5; // Assuming 5s duration
+      this.ctx.fillStyle = this.getPowerUpColor(powerUp.type);
+      this.ctx.fillRect(width - 155, y + boxHeight - 8, barWidth * progress, 4);
+    });
+  }
+
+  private getPowerUpColor(type: string): string {
+    switch (type) {
+      case 'speedBoost': return '#FF6B00';
+      case 'shield': return '#00BFFF';
+      case 'doubleJump': return '#FF1493';
+      case 'magnet': return '#FFD700';
+      default: return '#FFFFFF';
+    }
+  }
+
+  private getPowerUpIcon(type: string): string {
+    switch (type) {
+      case 'speedBoost': return '⚡';
+      case 'shield': return '🛡️';
+      case 'doubleJump': return '⬆️';
+      case 'magnet': return '🧲';
+      default: return '?';
+    }
+  }
+
+  private getPowerUpName(type: string): string {
+    switch (type) {
+      case 'speedBoost': return 'Speed';
+      case 'shield': return 'Shield';
+      case 'doubleJump': return 'Double Jump';
+      case 'magnet': return 'Magnet';
+      default: return 'Unknown';
+    }
+  }
+
+  renderCombo(combo: number, multiplier: number, rank: string): void {
+    if (combo === 0) return;
+
+    const centerX = this.ctx.canvas.width / 2;
+    const y = 100;
+
+    // Combo background
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    this.ctx.fillRect(centerX - 100, y - 30, 200, 60);
+
+    // Combo text
+    this.ctx.fillStyle = '#FFD700';
+    this.ctx.font = 'bold 32px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText(`${combo}x COMBO`, centerX, y);
+
+    // Rank
+    if (rank) {
+      this.ctx.fillStyle = '#FF6B00';
+      this.ctx.font = 'bold 16px Arial';
+      this.ctx.fillText(rank, centerX, y + 20);
+    }
+
+    // Multiplier
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.font = '14px Arial';
+    this.ctx.fillText(`${multiplier.toFixed(1)}x Multiplier`, centerX, y - 15);
   }
 }

@@ -215,7 +215,7 @@ export class LevelGenerator {
     const numObstacles = random.nextInt(2, 3);
 
     for (let i = 0; i < numObstacles; i++) {
-      const obstacleType = random.choice(['lowBarrier', 'gap', 'wall', 'vent']);
+      const obstacleType = random.choice(['lowBarrier', 'gap', 'wall', 'vent', 'spring', 'dashPad']);
 
       switch (obstacleType) {
         case 'lowBarrier':
@@ -235,6 +235,18 @@ export class LevelGenerator {
           break;
         case 'vent':
           obstacles.push(new Obstacle('vent', startX + offset, this.groundY - 35, 50, 25));
+          offset += 100;
+          break;
+        case 'spring':
+          obstacles.push(new Obstacle('spring', startX + offset, this.groundY - 15, 30, 15, {
+            springForce: -600
+          }));
+          offset += 80;
+          break;
+        case 'dashPad':
+          obstacles.push(new Obstacle('dashPad', startX + offset, this.groundY - 5, 60, 5, {
+            dashSpeed: 400
+          }));
           offset += 100;
           break;
       }
@@ -263,5 +275,24 @@ export class LevelGenerator {
     });
 
     return obstacles;
+  }
+
+  // Generate power-up positions for a level
+  generatePowerUpPositions(levelLength: number, _difficulty: number, random: SeededRandom): Array<{ x: number; y: number; type: string }> {
+    const powerUps: Array<{ x: number; y: number; type: string }> = [];
+    const spacing = 800; // Power-ups every ~800 pixels
+    const numPowerUps = Math.floor(levelLength / spacing);
+
+    const types = ['speedBoost', 'shield', 'doubleJump', 'magnet'];
+
+    for (let i = 1; i < numPowerUps; i++) {
+      const x = i * spacing + random.next() * 200;
+      const y = this.groundY - 100 - random.next() * 100; // Floating above ground
+      const type = random.choice(types);
+
+      powerUps.push({ x, y, type });
+    }
+
+    return powerUps;
   }
 }
